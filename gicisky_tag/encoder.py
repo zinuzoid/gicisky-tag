@@ -59,7 +59,7 @@ def dither_image_bwr(image, dithering, debug_folder=None):
     """Dither the image using black, white and red.
     """
     if dithering not in Dither:
-        raise ValueError(f"Invalid dithering parameter: {dither}")
+        raise ValueError(f"Invalid dithering parameter: {dithering}")
 
     if dithering in (Dither.NONE, Dither.FLOYDSTEINBERG):
         bwr_palette_image = Image.new("P", (1,1))
@@ -117,29 +117,8 @@ def encode_image(image, dithering=Dither.NONE, debug_folder=None):
     red_bitmap = np.flipud(np.rot90(red_bitmap))
     assert red_bitmap.shape == image.size, f"Expected shape {image.size}, but got {red_bitmap.shape}"
 
-    bw_data = compress_bitmap(np.packbits(bw_bitmap, axis=-1), image.size)
-    red_data = compress_bitmap(np.packbits(red_bitmap, axis=-1), image.size)
+    bw_data = np.packbits(bw_bitmap, axis=-1)
+    red_data = np.packbits(red_bitmap, axis=-1)
 
     image_data = bytearray(bw_data) + bytearray(red_data)
-    image_data = len(image_data).to_bytes(4, "little") + image_data
     return image_data
-
-
-def compress_bitmap(bitmap, image_shape):
-    expected_shape = (250, 122)
-    # TODO: make sure that the compression works well for other image sizes
-    assert image_shape == expected_shape, f"Expected image of shape {expected_shape}, but got {image_shape}"
-
-    width, height = image_shape
-    encoded_bitmap = []
-    assert 0 < width
-    assert 0 < height <= 128
-    assert len(bitmap) == width
-    num_line_bytes = math.ceil(height / 8) # 1 byte = 8 pixels
-    compression_markers = [0b00000000, 0b00000000, 0b00000000, 0b00000000]
-    for col in range(width):
-        line_bitvec = list(bitmap[col])
-        assert len(line_bitvec) == num_line_bytes, f"Line {col} has {len(line_bitvec)} elements, but should have {num_line_bytes} elements."
-        encoded_line = [0x75, 3 + len(compression_markers) + len(line_bitvec), num_line_bytes] + compression_markers + line_bitvec
-        encoded_bitmap += encoded_line
-    return encoded_bitmap

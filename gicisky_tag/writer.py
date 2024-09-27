@@ -21,6 +21,7 @@ class ScreenWriter:
     async def start_notify(self):
         async def handler(sender, data):
             await self.notify_handler(sender, data)
+        logger.debug(f"Start notify")
         await self.device.start_notify(ScreenWriter.REQUEST_CHARACTERISTIC, handler)
 
     async def stop_notify(self):
@@ -28,7 +29,7 @@ class ScreenWriter:
         await self.device.stop_notify(ScreenWriter.REQUEST_CHARACTERISTIC)
 
     async def _send_request(self, data):
-        logger.log(logging.NOTSET, f"Sending request message: {[data[i] for i in range(len(data))]}")
+        logger.debug(f"Sending request message: {[data[i] for i in range(len(data))]}")
         self.pending_notify = asyncio.Event()
         pending_task = self.pending_notify
         await self.device.write_gatt_char(
@@ -36,30 +37,32 @@ class ScreenWriter:
             data,
             response=True,
         )
+        logger.debug(f"Finish request message len: {len(data)}")
         return pending_task
 
     async def _send_write(self, data):
-        logger.log(logging.NOTSET, f"Sending image message: {[data[i] for i in range(len(data))]}")
+        logger.debug(f"Sending image message: {data.hex()}")
         assert len(data) <= self.block_size
         await self.device.write_gatt_char(
             ScreenWriter.IMAGE_CHARACTERISTIC,
             data,
             response=True,
         )
+        logger.debug(f"Finish image message len: {len(data)}")
 
     async def raw_request(self, message):
-        panding_task = await self._send_request(bytearray(message))
-        await panding_task.wait()
+        pending_task = await self._send_request(bytearray(message))
+        await pending_task.wait()
 
     async def request_block_size(self):
-        logger.log(logging.NOTSET, "Request: block size")
+        logger.debug("Request: block size")
         await self.raw_request([0x01])
 
     async def request_write_screen(self):
         assert self.block_size is not None and self.block_size > 0
         size = len(self.image)
         logger.debug(f"Request: write screen (size: {size})")
-        await self.raw_request([0x02, *size.to_bytes(4, "little")])
+        await self.raw_request([0x02, *size.to_bytes(7, "little")])
 
     async def request_start_transfer(self):
         self.transfer_queue = asyncio.Queue()
@@ -87,7 +90,7 @@ class ScreenWriter:
         await self.raw_request([0x19, *address[0:6:-1]])
 
     async def notify_handler(self, _characteristic, data):
-        logger.log(logging.NOTSET, f"Received notify: {[data[i] for i in range(len(data))]}")
+        logger.debug(f"Received notify: {[data[i] for i in range(len(data))]}")
         if data[0] == 0x01:
             assert len(data) == 3
             logger.debug(f"Success: block size request")
@@ -156,6 +159,8 @@ async def send_data_to_screen(address, image_data):
         screen = ScreenWriter(device, image_data)
         logger.info(f"Sending image data...")
         await screen.start_notify()
+        if device._backend.__class__.__name__ == "BleakClientCoreBluetooth":
+            await asyncio.sleep(1)
         await screen.request_block_size()
         await screen.request_write_screen()
         await screen.request_start_transfer()
