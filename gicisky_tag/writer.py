@@ -170,9 +170,9 @@ class ScreenWriter:
         await self._send_write(message)
 
 
-async def send_data_to_screen(address, image_data):
+async def send_data_to_screen(address, image_data, **kwargs):
     logger.info(f"Connecting to {address}...")
-    async with BleakClient(address) as device:
+    async with BleakClient(address, **kwargs) as device:
         # BlueZ doesn't have a proper way to get the MTU, so we have this hack.
         # If this doesn't work for you, you can set the device._mtu_size attribute
         # to override the value instead.
