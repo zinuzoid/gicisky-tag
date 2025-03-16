@@ -129,11 +129,10 @@ def encode_image(image, dithering=Dither.NONE, debug_folder=None):
         red_bitmap.shape == image.size
     ), f"Expected shape {image.size}, but got {red_bitmap.shape}"
 
-    bw_data = compress_bitmap(np.packbits(bw_bitmap, axis=-1), image.size)
-    red_data = compress_bitmap(np.packbits(red_bitmap, axis=-1), image.size)
+    bw_data = np.packbits(bw_bitmap, axis=-1)
+    red_data = np.packbits(red_bitmap, axis=-1)
 
     image_data = bytearray(bw_data) + bytearray(red_data)
-    image_data = len(image_data).to_bytes(4, "little") + image_data
     return image_data
 
 

@@ -82,6 +82,7 @@ class ScreenWriter:
             data,
             response=True,
         )
+        logger.debug(f"Finish image message len: {len(data)}")
 
     async def request_block_size(self):
         logger.log(logging.NOTSET, "Request: block size")
@@ -91,7 +92,7 @@ class ScreenWriter:
         assert self.block_size is not None and self.block_size > 0
         size = len(self.image)
         logger.debug(f"Request: write screen (size: {size})")
-        await self._send_request([0x02, *size.to_bytes(4, "little")])
+        await self._send_request([0x02, *size.to_bytes(7, "little")])
 
     async def request_start_transfer(self):
         logger.debug("Request: start transfer")
@@ -183,6 +184,8 @@ async def send_data_to_screen(address, image_data, **kwargs):
         screen = ScreenWriter(device, image_data)
         logger.info(f"Sending image data...")
         await screen.start_notify()
+        if device._backend.__class__.__name__ == "BleakClientCoreBluetooth":
+            await asyncio.sleep(1)
         await screen.request_block_size()
         await screen.request_write_screen()
         await screen.request_start_transfer()
