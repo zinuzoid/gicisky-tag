@@ -171,9 +171,24 @@ class ScreenWriter:
         await self._send_write(message)
 
 
-async def send_data_to_screen(address, image_data, **kwargs):
+async def send_data_to_screen(address, image_data, connect_timeout=None, **kwargs):
+    # Bleak's own `timeout` only covers the device scan and the connection once they have
+    # started. If BlueZ never answers the request to start scanning, `connect()` waits forever,
+    # so we bound the whole connect step ourselves. The default allows for the scan and the
+    # connection each using the full bleak timeout (10s unless given), plus some slack.
+    if connect_timeout is None:
+        connect_timeout = 2 * kwargs.get("timeout", 10.0) + 10
     logger.info(f"Connecting to {address}...")
-    async with BleakClient(address, **kwargs) as device:
+    device = BleakClient(address, **kwargs)
+    try:
+        await asyncio.wait_for(device.connect(), timeout=connect_timeout)
+    except asyncio.TimeoutError:
+        raise TimeoutError(
+            f"Timed out after {connect_timeout}s connecting to {address}. "
+            "On Linux, BlueZ may be stuck; try `sudo systemctl restart bluetooth`."
+        ) from None
+    logger.info(f"Connected to {address}")
+    try:
         # BlueZ doesn't have a proper way to get the MTU, so we have this hack.
         # If this doesn't work for you, you can set the device._mtu_size attribute
         # to override the value instead.
@@ -191,3 +206,5 @@ async def send_data_to_screen(address, image_data, **kwargs):
         await screen.request_start_transfer()
         await screen.handle_transfer()
         await screen.stop_notify()
+    finally:
+        await device.disconnect()
