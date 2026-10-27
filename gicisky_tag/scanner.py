@@ -18,7 +18,11 @@ async def find_address():
     scanner = BleakScanner(scan_callback)
     while address is None:
         await scanner.start()
-        await asyncio.sleep(1.0)
-        await scanner.stop()
+        # Stop the scan even if we are cancelled (e.g. by a timeout) while it runs, otherwise
+        # the adapter is left discovering with our filter applied.
+        try:
+            await asyncio.sleep(1.0)
+        finally:
+            await scanner.stop()
 
     return address
